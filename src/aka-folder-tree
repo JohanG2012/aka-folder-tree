@@ -1,0 +1,111 @@
+#!/bin/bash
+
+# Check if 'tree' command is installed
+if ! command -v tree &> /dev/null; then
+    echo "Error: 'tree' command is not installed."
+
+    # Check the operating system to provide relevant install instructions
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "To install 'tree' on macOS using Homebrew, run:"
+        echo "brew install tree"
+    elif [[ "$OSTYPE" == "linux-gnu" ]]; then
+        echo "To install 'tree' on Linux, run:"
+        echo "sudo apt-get install tree    # For Ubuntu/Debian"
+        echo "sudo yum install tree        # For CentOS/Fedora"
+    elif [[ "$OSTYPE" == "cygwin" ]]; then
+        echo "To install 'tree' on Windows with Cygwin, run:"
+        echo "setup-x86_64.exe -q -P tree"
+    else
+        echo "Please install 'tree' using your package manager."
+    fi
+
+    exit 1
+fi
+
+# Function to pretty print the folder structure
+print_folder_structure() {
+    local show_hidden=false
+    local ignore_list=()
+    local show_content=false
+    local tree_command="tree -C -F --charset=ascii"
+
+    while [[ "$1" ]]; do
+        case "$1" in
+            --content)
+                show_content=true
+                if [[ -z "$2" ]]; then
+                    tree_command="tree -a -C -F --charset=ascii"
+                else
+                    tree_command="tree -a -C -F --charset=ascii \"$2\""
+                fi
+                shift
+                ;;
+            --show-hidden)
+                show_hidden=true
+                shift
+                ;;
+            --ignore)
+                shift
+                ignore_list+=("$1")
+                shift
+                ;;
+            *)
+                if [[ -z "$1" ]]; then
+                    echo "No Argument passed"
+                    tree_command="tree -C -F --charset=ascii"
+                else
+                    echo "Argument passed"
+                    tree_command="tree -C -F --charset=ascii \"$1\""
+                fi
+                shift
+                ;;
+        esac
+    done
+
+    if [ "$show_hidden" = true ]; then
+        tree_command+=" -a"
+    fi
+
+    script_directory="$(cd "$(dirname "$0")" && pwd)"
+    ignore_file_script="$script_directory/.aka-folder-tree-ignore"
+
+    if [ "$show_content" = true ]; then
+        if [ -z "$2" ]; then
+            # Print folder structure with file contents in the current directory, excluding ignored files
+            find . -type f -print | grep -v -f $ignore_file_script | xargs cat
+        else
+            # Print folder structure with file contents for the specified directory, excluding ignored files
+            find "$2" -type f -print | grep -v -f $ignore_file_script | xargs cat
+        fi
+        return
+    fi
+
+
+    
+    echo "$ignore_file_script"
+
+    if [ -f "$ignore_file_script" ]; then
+        echo "Ignore file found"
+        while IFS= read -r line; do
+            ignore_list+=("$line")
+        done < "$ignore_file_script"
+    fi
+    echo "After ignore list"
+
+    for item in "${ignore_list[@]}"; do
+        echo "Ignoring: $item"  # Add this line for debugging
+        tree_command+=" -I \"$item\""
+    done
+
+    # Add this line for debugging
+    echo "Tree command: $tree_command"
+
+    if [ -z "$tree_command" ]; then
+        tree_command="tree -C -F --charset=ascii"
+    fi
+
+    eval "$tree_command"
+}
+
+# Run the function with command line arguments
+print_folder_structure "$@"
